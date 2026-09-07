@@ -9,6 +9,17 @@ package com.facultybeacon.network
  */
 object SupabaseConfig {
 
+    /**
+     * Beacon UUID (the `test_message` value) to broadcast. 32 hex characters, no dashes -
+     * use one of the UUIDs from your test_messages set (existing
+     * `test_connections.test_message` values are good examples, e.g.
+     * "0d63f7ea6244e98a6734f5ef87bbfbb9" or "3cecdd9a36af122863e194aa480f56ac").
+     *
+     * Set per phone before building: each phone should broadcast its own message UUID.
+     * Set to "" to fall back to a random 32-hex UUID per session instead.
+     */
+    const val MESSAGE_UUID = "0d63f7ea6244e98a6734f5ef87bbfbb9"
+
     /** e.g. "https://abcdefghijklm.supabase.co" (no trailing slash) */
     const val SUPABASE_URL = "https://mqzwholysrukuhbdqisc.supabase.co"
 
@@ -21,10 +32,10 @@ object SupabaseConfig {
     // Column names - adjust if the ESP32 table uses different names.
     // A column set to null is simply omitted from the POST body (useful when the
     // table does not have that column, e.g. device_name below).
-    const val COL_UUID: String? = "test_message"
-    const val COL_BLUETOOTH_MAC: String? = "device_id"
-    const val COL_DEVICE_NAME: String? = null
-    const val COL_DEVICE_SECRET: String? = "device_secret"
+    const val COL_UUID: String = "test_message"
+    const val COL_BLUETOOTH_MAC: String = "device_id"
+    val COL_DEVICE_NAME: String? = null
+    const val COL_DEVICE_SECRET: String = "device_secret"
 
     /** Master switch - set false to run the beacon without a backend (e.g. lab testing). */
     const val ENABLED = true

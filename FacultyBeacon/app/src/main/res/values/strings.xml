@@ -22,7 +22,6 @@
     <string name="testing_subtitle">Device capabilities (refreshed on entry)</string>
     <string name="ble_supported_label">BLE supported:</string>
     <string name="advertising_supported_label">BLE advertising supported:</string>
-    <string name="extended_advertising_label">Extended advertising (BLE 5.0):</string>
     <string name="bluetooth_enabled_label">Bluetooth enabled:</string>
     <string name="advertising_status_label">Advertising status:</string>
     <string name="beacon_uuid_label">Beacon UUID:</string>

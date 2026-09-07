@@ -30,7 +30,7 @@ class SupabaseReporter(
     /** Inserts one row for the session (columns set to null in [SupabaseConfig] are omitted). */
     suspend fun reportSession(session: BeaconSession): ReportResult = withContext(Dispatchers.IO) {
         val body = JSONObject().apply {
-            putIfConfigured(SupabaseConfig.COL_UUID, session.uuid.toString())
+            putIfConfigured(SupabaseConfig.COL_UUID, session.uuid)
             putIfConfigured(SupabaseConfig.COL_BLUETOOTH_MAC, session.bluetoothMac)
             putIfConfigured(SupabaseConfig.COL_DEVICE_NAME, session.deviceName)
             putIfConfigured(SupabaseConfig.COL_DEVICE_SECRET, session.deviceSecret)

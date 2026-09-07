@@ -122,13 +122,7 @@ class BeaconService : Service() {
 
             // 3) Configure and start the advertisement.
             BeaconState.setStatus(BeaconState.Status.STARTING)
-            BeaconState.setRequestedTxPower(
-                if (advertiser.isExtendedAdvertisingSupported) {
-                    "${BleBeaconAdvertiser.DEFAULT_TX_POWER_DBM} dBm (extended advertising)"
-                } else {
-                    "HIGH (legacy preset, device-dependent)"
-                }
-            )
+            BeaconState.setRequestedTxPower("HIGH (legacy preset, device-dependent)")
             BeaconState.addLog(
                 "Advertisement configured: manufacturer 0x" +
                     BlePayload.MANUFACTURER_ID.toString(16) + " + 16-byte UUID, non-connectable"
@@ -137,7 +131,6 @@ class BeaconService : Service() {
 
             advertiser.start(
                 session.uuid,
-                BleBeaconAdvertiser.DEFAULT_TX_POWER_DBM,
                 object : BleBeaconAdvertiser.Callback {
                     override fun onStarted(actualTxPower: String, modeDescription: String) {
                         BeaconState.setAdvertisingMode(modeDescription)

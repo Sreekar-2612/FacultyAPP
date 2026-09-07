@@ -3,9 +3,9 @@ package com.facultybeacon.beacon
 import android.bluetooth.BluetoothManager
 import android.content.Context
 import android.os.Build
+import com.facultybeacon.network.SupabaseConfig
 import java.security.SecureRandom
 import java.util.Locale
-import java.util.UUID
 
 /**
  * Creates new beacon sessions and manages the persistent per-device identifiers.
@@ -21,13 +21,38 @@ class BeaconSessionManager(context: Context) {
     private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val secureRandom = SecureRandom()
 
-    /** Generates a fresh 128-bit UUID plus the device's stable identifiers. */
+    /** Generates the beacon UUID plus the device's stable identifiers. */
     fun newSession(): BeaconSession {
-        val uuid = UUID.randomUUID() // backed by SecureRandom
+        val uuid = resolveUuid()
         val mac = resolveBluetoothMac()
         val secret = getOrCreateDeviceSecret()
         val name = resolveDeviceName()
         return BeaconSession(uuid, mac, name, secret)
+    }
+
+    /**
+     * Returns the configured [SupabaseConfig.MESSAGE_UUID] when set, otherwise a fresh
+     * random 32-hex UUID. Either way the format matches the `test_message` values
+     * stored by the ESP32 (32 lowercase hex characters, no dashes).
+     */
+    private fun resolveUuid(): String {
+        val configured = SupabaseConfig.MESSAGE_UUID.trim()
+        if (configured.isNotEmpty()) {
+            require(
+                configured.length == 32 && configured.all { c ->
+                    c.isDigit() || c.lowercaseChar() in 'a'..'f'
+                }
+            ) {
+                "SupabaseConfig.MESSAGE_UUID must be 32 hex characters " +
+                    "(e.g. 0d63f7ea6244e98a6734f5ef87bbfbb9)"
+            }
+            return configured.lowercase(Locale.US)
+        }
+
+        val bytes = ByteArray(16).also { secureRandom.nextBytes(it) }
+        return bytes.joinToString("") { byte ->
+            String.format(Locale.US, "%02x", byte.toInt() and 0xFF)
+        }
     }
 
     /**

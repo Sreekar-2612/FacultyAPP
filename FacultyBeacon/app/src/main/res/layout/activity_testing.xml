@@ -42,12 +42,6 @@
             android:layout_height="wrap_content" />
 
         <include
-            android:id="@+id/rowExtendedAdvertising"
-            layout="@layout/item_diagnostic"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content" />
-
-        <include
             android:id="@+id/rowBluetoothEnabled"
             layout="@layout/item_diagnostic"
             android:layout_width="match_parent"

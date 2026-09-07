@@ -54,8 +54,6 @@ class TestingActivity : AppCompatActivity() {
             yesNo(packageManager.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)))
         setRow(binding.rowAdvertisingSupported, R.string.advertising_supported_label,
             yesNo(advertiser.isAdvertisingSupported))
-        setRow(binding.rowExtendedAdvertising, R.string.extended_advertising_label,
-            yesNo(advertiser.isExtendedAdvertisingSupported))
         setRow(binding.rowBluetoothEnabled, R.string.bluetooth_enabled_label,
             yesNo(advertiser.isBluetoothEnabled))
     }
@@ -98,7 +96,7 @@ class TestingActivity : AppCompatActivity() {
                 launch {
                     BeaconState.beaconUuid.collect { uuid ->
                         setRow(binding.rowBeaconUuid, R.string.beacon_uuid_label,
-                            uuid?.toString() ?: getString(R.string.not_set))
+                            uuid ?: getString(R.string.not_set))
                     }
                 }
                 launch {

@@ -4,7 +4,6 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.UUID
 
 /**
  * Process-wide, in-memory state shared between the foreground service (which does the
@@ -27,8 +26,8 @@ object BeaconState {
     private val _status = MutableStateFlow(Status.IDLE)
     val status: StateFlow<Status> = _status.asStateFlow()
 
-    private val _beaconUuid = MutableStateFlow<UUID?>(null)
-    val beaconUuid: StateFlow<UUID?> = _beaconUuid.asStateFlow()
+    private val _beaconUuid = MutableStateFlow<String?>(null)
+    val beaconUuid: StateFlow<String?> = _beaconUuid.asStateFlow()
 
     private val _bluetoothMac = MutableStateFlow<String?>(null)
     val bluetoothMac: StateFlow<String?> = _bluetoothMac.asStateFlow()

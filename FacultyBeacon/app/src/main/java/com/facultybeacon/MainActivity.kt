@@ -165,7 +165,7 @@ class MainActivity : AppCompatActivity() {
                     BeaconState.beaconUuid.collect { uuid ->
                         binding.textBeaconId.text = getString(
                             R.string.beacon_id_label,
-                            uuid?.toString() ?: getString(R.string.not_set)
+                            uuid ?: getString(R.string.not_set)
                         )
                     }
                 }

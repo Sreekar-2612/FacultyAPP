@@ -1,34 +1,21 @@
 package com.facultybeacon.beacon
 
 import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
-import android.bluetooth.le.AdvertisingSetCallback
-import android.bluetooth.le.AdvertisingSetParameters
 import android.bluetooth.le.BluetoothLeAdvertiser
-import android.bluetooth.le.BluetoothLeAdvertisingSet
 import android.content.Context
-import android.os.Build
-import java.util.UUID
 
 /**
  * Wraps Android's BLE advertising APIs so the phone broadcasts like the ESP32 beacon:
  * a non-connectable advertisement carrying manufacturer-specific data
  * (2 bytes manufacturer ID 0xFFFF + 16-byte UUID), broadcast continuously.
  *
- * Two paths are used:
- *
- *  1. Extended advertising (API 26+ AND BLE 5.0-capable controller). This is the closest
- *     Android equivalent to the ESP32's `BLEDevice::setPower(ESP_PWR_LVL_N9)` because
- *     [AdvertisingSetParameters.Builder.setTxPowerLevel] accepts an exact dBm value.
- *     The app requests +9 dBm (the same as ESP_PWR_LVL_N9); the controller clamps to its
- *     actual maximum and reports the real value back through the callback.
- *
- *  2. Legacy [BluetoothLeAdvertiser] (broad compatibility, API 21+). TX power is only
- *     selectable from a fixed preset list; we use [AdvertiseSettings.ADVERTISE_TX_POWER_HIGH].
+ * Uses the public [BluetoothLeAdvertiser] (API 21+, BLE 4.0 controllers). TX power is
+ * only selectable from the fixed preset list, so we use [AdvertiseSettings.ADVERTISE_TX_POWER_HIGH]
+ * (the closest public equivalent to the ESP32's +9 dBm `ESP_PWR_LVL_N9`).
  *
  * The phone never scans and never connects - it is a pure broadcaster, like the ESP32.
  */
@@ -36,11 +23,8 @@ class BleBeaconAdvertiser(context: Context) {
 
     companion object {
         /** Advertise interval in ms. Matches the ESP32's continuous broadcast; LOW_LATENCY
-         *  on the legacy path and INTERVAL_LOW (~100 ms) on the extended path. */
+         *  gives an interval of ~100 ms. */
         const val ADVERTISE_INTERVAL_MS = 100
-
-        /** Requested TX power in dBm - matches the ESP32's ESP_PWR_LVL_N9 (+9 dBm). */
-        const val DEFAULT_TX_POWER_DBM = 9
     }
 
     interface Callback {
@@ -67,29 +51,18 @@ class BleBeaconAdvertiser(context: Context) {
     val isAdvertisingSupported: Boolean
         get() = adapter?.isMultipleAdvertisementSupported == true
 
-    /** Whether the controller supports extended advertising, i.e. exact dBm TX control
-     *  (BLE 5.0 hardware, Android 8.0+). */
-    val isExtendedAdvertisingSupported: Boolean
-        get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            adapter?.isLeExtendedAdvertisingSupported == true
-
     private var legacyCallback: AdvertiseCallback? = null
-    private var setCallback: AdvertisingSetCallback? = null
     private var activeLegacyAdvertiser: BluetoothLeAdvertiser? = null
-    private var activeSetAdvertiser: BluetoothLeAdvertiser? = null
-    private var activeSet: BluetoothLeAdvertisingSet? = null
 
     @Volatile
     var isAdvertising: Boolean = false
         private set
 
     /**
-     * Starts continuous non-connectable advertising of the given UUID using the best
-     * available path. If the extended path is unsupported or rejected by the controller,
-     * falls back to the legacy advertiser.
+     * Starts continuous non-connectable advertising of the given 32-hex-char UUID.
      */
     @Synchronized
-    fun start(uuid: UUID, requestedTxPowerDbm: Int, callback: Callback) {
+    fun start(uuid: String, callback: Callback) {
         stop()
 
         val btAdapter = adapter
@@ -102,14 +75,7 @@ class BleBeaconAdvertiser(context: Context) {
             return
         }
 
-        val payload = BlePayload.uuidToBytes(uuid)
-
-        if (isExtendedAdvertisingSupported) {
-            startExtendedSet(btAdapter, payload, requestedTxPowerDbm, callback)
-        } else {
-            BeaconState.addLog("Extended advertising not supported - using legacy advertiser")
-            startLegacy(btAdapter, payload, callback)
-        }
+        startLegacy(btAdapter, BlePayload.uuidToBytes(uuid), callback)
     }
 
     /** Stops advertising. The [Callback.onStopped] of an active session fires asynchronously. */
@@ -121,94 +87,10 @@ class BleBeaconAdvertiser(context: Context) {
             activeLegacyAdvertiser?.let { advertiser ->
                 legacyCallback?.let { advertiser.stopAdvertising(it) }
             }
-            activeSetAdvertiser?.let { advertiser ->
-                setCallback?.let { advertiser.stopAdvertisingSet(it) }
-            }
         }
         activeLegacyAdvertiser = null
-        activeSetAdvertiser = null
-        activeSet = null
         legacyCallback = null
-        setCallback = null
         isAdvertising = false
-    }
-
-    // ------------------------------------------------------------------ extended path
-
-    private fun startExtendedSet(
-        adapter: BluetoothAdapter,
-        payload: ByteArray,
-        txPowerDbm: Int,
-        callback: Callback
-    ) {
-        val advertiser = try {
-            adapter.bluetoothLeAdvertiser
-        } catch (e: Exception) {
-            BeaconState.addLog("BLE advertiser unavailable for extended advertising (${e.message}) - using legacy")
-            startLegacy(adapter, payload, callback)
-            return
-        }
-        if (advertiser == null) {
-            BeaconState.addLog("BLE advertiser unavailable for extended advertising - using legacy")
-            startLegacy(adapter, payload, callback)
-            return
-        }
-
-        val parameters = AdvertisingSetParameters.Builder()
-            .setLegacyMode(true)        // ADV_NONCONN_IND - same PDU family as the ESP32, visible to all BLE 4.0+ scanners
-            .setConnectable(false)      // non-connectable broadcast only
-            .setScannable(false)
-            .setInterval(AdvertisingSetParameters.INTERVAL_LOW) // ~100 ms
-            .setTxPowerLevel(txPowerDbm) // dBm; controller clamps to its actual max
-            .setPrimaryPhy(BluetoothDevice.PHY_LE_1M)
-            .setSecondaryPhy(BluetoothDevice.PHY_LE_1M)
-            .build()
-
-        val advertiseData = AdvertiseData.Builder()
-            .setIncludeDeviceName(false)
-            .addManufacturerData(BlePayload.MANUFACTURER_ID, payload)
-            .build()
-
-        val cb = object : AdvertisingSetCallback() {
-            override fun onAdvertisingSetStarted(
-                advertisingSet: BluetoothLeAdvertisingSet,
-                txPower: Int,
-                status: Int
-            ) {
-                if (status != AdvertisingSetCallback.ADVERTISE_SUCCESS) {
-                    // Controller rejected this configuration - degrade to the legacy path.
-                    BeaconState.addLog("Extended advertising rejected (status $status) - falling back to legacy")
-                    setCallback = null
-                    activeSetAdvertiser = null
-                    startLegacy(adapter, payload, callback)
-                    return
-                }
-                activeSet = advertisingSet
-                isAdvertising = true
-                callback.onStarted(
-                    "$txPower dBm",
-                    "Extended (BLE 5.0), legacy ADV_NONCONN_IND, ~${ADVERTISE_INTERVAL_MS} ms interval"
-                )
-            }
-
-            override fun onAdvertisingSetStopped(advertisingSet: BluetoothLeAdvertisingSet) {
-                if (activeSet === advertisingSet) {
-                    isAdvertising = false
-                    callback.onStopped()
-                }
-            }
-        }
-        setCallback = cb
-        activeSetAdvertiser = advertiser
-
-        try {
-            advertiser.startAdvertisingSet(parameters, advertiseData, null, null, null, cb)
-        } catch (e: Exception) {
-            BeaconState.addLog("Extended advertising failed (${e.message}) - falling back to legacy")
-            setCallback = null
-            activeSetAdvertiser = null
-            startLegacy(adapter, payload, callback)
-        }
     }
 
     // -------------------------------------------------------------------- legacy path
@@ -242,7 +124,7 @@ class BleBeaconAdvertiser(context: Context) {
                 isAdvertising = true
                 callback.onStarted(
                     txPowerLabel(settingsInEffect.txPowerLevel),
-                    "Legacy advertiser, non-connectable, ~${ADVERTISE_INTERVAL_MS} ms interval"
+                    "Non-connectable broadcast, ~${ADVERTISE_INTERVAL_MS} ms interval"
                 )
             }
 
