@@ -1,0 +1,1 @@
+# App-specific ProGuard/R8 rules (none needed yet; minification is disabled by default).
